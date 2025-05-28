@@ -91,12 +91,12 @@ export default function Login() {
           <FontAwesome name="google" size={20} color="#DB4437" />
           <Text style={styles.googleText}>Continue with Google</Text>
         </TouchableOpacity>
-{/* 
+
         <TouchableOpacity onPress={() => router.push('/register')}>
           <Text style={styles.signUpText}>
             Don’t have an account? <Text style={{ fontWeight: 'bold' }}>Sign Up</Text>
           </Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>
       </View>
     </View>
   );
