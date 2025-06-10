@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import config from '../config';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,25 +20,77 @@ export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
+  const apiBaseUrl = config.API_BASE_URL;
   const [request, response, promptAsync] = Google.useAuthRequest({
     clientId: '46228661104-vplcjvmpir4ek87eic3r5kf96ibrbgs5.apps.googleusercontent.com',
   });
 
   useEffect(() => {
     if (response?.type === 'success') {
-      // Handle user info or navigation
-      router.replace('/(tabs)/home');
+      const token = response.authentication;
+
+      // Send token to backend
+      fetch(`${apiBaseUrl}/api/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ token: token })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.token) {
+            // Save JWT token (AsyncStorage or SecureStore)
+            console.log('JWT Token:', data.token);
+            router.replace('/(tabs)/home');
+          } else {
+            Alert.alert('Login failed', data.message || 'Unknown error');
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          Alert.alert('Login error', err.message);
+        });
     }
   }, [response]);
 
-  const handleLogin = () => {
-    if (email && password) {
-      router.replace('/(tabs)/home');
-    } else {
+
+  const handleLogin = async () => {
+    if (!email || !password) {
       Alert.alert('Missing Info', 'Please enter email and password');
+      return;
+    }
+
+    try {
+
+      if (!email || !password) {
+        Alert.alert('Please enter username and password');
+        return;
+      }
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        Alert.alert('Login Failed', data.message || 'Unknown error');
+        return;
+      }
+
+      // Save the token if needed, then navigate
+      console.log('JWT Token:', data.token);
+      router.replace('/(tabs)/home');
+
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Network Error', 'Unable to connect to server');
     }
   };
+
 
   return (
     <View style={styles.container}>
@@ -103,7 +156,7 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B3D91'},
+  container: { flex: 1, backgroundColor: '#0B3D91' },
   topSection: {
     backgroundColor: '#0B3D91',
     height: '30%',
@@ -118,7 +171,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#fff',
     borderTopRightRadius: 100,
-    height:'100%'
+    height: '100%'
   },
   title: {
     fontSize: 28,
