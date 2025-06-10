@@ -13,6 +13,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import config from '../config';
+
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -22,25 +24,46 @@ export default function Register() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-
+    const apiBaseUrl = config.API_BASE_URL;
     const [request, response, promptAsync] = Google.useAuthRequest({
         clientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
     });
-
-    const handleSignUp = () => {
+    const handleSignUp = async () => {
         if (!name || !email || !password || !confirmPassword) {
             Alert.alert('All fields are required');
         } else if (password !== confirmPassword) {
             Alert.alert('Passwords do not match');
         } else {
-            // Proceed to register the user
-            router.replace('/login');
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        username: name,
+                        email,
+                        password,
+                        role: 'user', // or allow user to select role if needed
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    Alert.alert('Error', data.message || 'Registration failed');
+                    return;
+                }
+
+                Alert.alert('Success', 'Registration successful');
+                router.replace('/login');
+            } catch (error) {
+                console.error(error);
+                Alert.alert('Error', 'Something went wrong. Please try again.');
+            }
         }
     };
 
-    if (response?.type === 'success') {
-        router.replace('/login');
-    }
 
     return (
         <View style={styles.container}>
