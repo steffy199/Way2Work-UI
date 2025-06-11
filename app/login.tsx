@@ -83,7 +83,8 @@ export default function Login() {
 
       // Save the token if needed, then navigate
       console.log('JWT Token:', data.token);
-      router.replace('/(tabs)/home');
+      router.replace({ pathname: '/(tabs)/home', params: { token: data.token } });
+
 
     } catch (error) {
       console.error(error);
