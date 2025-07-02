@@ -62,9 +62,8 @@ export default function Login() {
     }
 
     try {
-
       if (!email || !password) {
-        Alert.alert('Please enter username and password');
+        Alert.alert('Missing Info', 'Please enter email and password');
         return;
       }
       const response = await fetch(`${apiBaseUrl}/api/auth/login`, {

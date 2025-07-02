@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "way2work",
-    "slug": "way2work",
+    "name": "Way2Work",
+    "slug": "Way2Work",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo.png",
+    "icon": "./assets/images/splash.png",
     "scheme": "way2work",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -29,9 +29,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
+          "image": "./assets/images/splash.png",
+          "imageWidth": 400,
+          "resizeMode": "cover",
           "backgroundColor": "#ffffff"
         }
       ]
