@@ -44,7 +44,7 @@ export default function Home() {
 
     const fetchData = async () => {
       if (!token) {
-        Alert.alert('Unauthorized', 'No token found in route. Please log in.');
+        Alert.alert('Unauthorized', 'No token found in route. Please log');
         return;
       }
 
