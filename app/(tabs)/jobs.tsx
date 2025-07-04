@@ -1,33 +1,41 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Button, ScrollView, Alert } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import { useLocalSearchParams } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Alert, Button, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import config from '../../config';
 
+const initialForm={
+  job_title: '',
+  job_type: null,
+  employer_name: '',
+  street_address: '',
+  city: '',
+  province: '',
+  postal_code: '',
+  latitude: '',
+  longitude: '',
+  number_of_positions: '1',
+  employer_email: '',
+  employer_contact: '',
+  job_description: '',
+}
 export default function Jobs() {
   const { token } = useLocalSearchParams(); // ✅ same as home.tsx
   const [user, setUser] = useState({ user_id: '', email: '', username: '' });
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    job_title: '',
-    job_type: 'Full-time',
-    employer_name: '',
-    street_address: '',
-    city: '',
-    province: '',
-    postal_code: '',
-    latitude: '',
-    longitude: '',
-    number_of_positions: '1',
-    employer_email: '',
-    employer_contact: '',
-    job_description: '',
-  });
+  const [form, setForm] = useState(initialForm);
 
-  const handleChange = (name: string, value: string) => {
+  const handleChange = (name: string, value: string | null) => {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const resetForm = () => {
+    if (showForm) { 
+      setForm(initialForm);
+    }
+    setShowForm((prev) => !prev);
+  };
   useEffect(() => {
     const getUser = async () => {
       if (!token) {
@@ -80,7 +88,7 @@ export default function Jobs() {
       headers: { Authorization: `Bearer ${token}` }, // ✅ FIXED
     });
     Alert.alert('Success', 'Job created successfully!');
-    setShowForm(false);
+    resetForm(); // Reset form after successful submission
   } catch (err: any) {
     console.error('Create job error:', err.response?.data || err.message);
     Alert.alert('Error', err.response?.data?.message || 'Failed to create job');
@@ -89,14 +97,26 @@ export default function Jobs() {
 
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Hi {user.username || 'User'} 👋</Text>
-      <Button title={showForm ? 'Cancel' : 'Create New Job'} onPress={() => setShowForm(!showForm)} />
+      <Button title={showForm ? 'Cancel' : 'Create New Job'} onPress={resetForm} />
 
       {showForm && (
         <View style={styles.form}>
           <TextInput placeholder="Job Title" style={styles.input} onChangeText={(val) => handleChange('job_title', val)} />
-          <TextInput placeholder="Job Type (e.g. Full-time)" style={styles.input} onChangeText={(val) => handleChange('job_type', val)} />
+          <View style={styles.input}>
+            <Picker
+              selectedValue={form.job_type}
+              onValueChange={(val) => handleChange('job_type', val)}>
+              <Picker.Item label="Select Job Type" value={null} />
+              <Picker.Item label="Full-Time" value="Full-time" />
+              <Picker.Item label="Part-Time" value="Part-time" />
+              <Picker.Item label="Contract" value="Contract" />
+              <Picker.Item label="Internship" value="Internship" />
+               <Picker.Item label="Temporary" value="Temporary" />
+                <Picker.Item label="Remote" value="Remote" />
+              </Picker>
+          </View>
           <TextInput placeholder="Employer Name" style={styles.input} onChangeText={(val) => handleChange('employer_name', val)} />
           <TextInput placeholder="Street Address" style={styles.input} onChangeText={(val) => handleChange('street_address', val)} />
           <TextInput placeholder="City" style={styles.input} onChangeText={(val) => handleChange('city', val)} />
