@@ -26,33 +26,37 @@ export default function Login() {
   });
 
   useEffect(() => {
-    if (response?.type === 'success') {
-      const token = response.authentication;
+  if (response?.type === 'success') {
+    const token = response.authentication;
 
-      // Send token to backend
-      fetch(`${apiBaseUrl}/api/auth/google`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token: token })
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.token) {
-            // Save JWT token (AsyncStorage or SecureStore)
-            console.log('JWT Token:', data.token);
-            router.replace('/(tabs)/home');
-          } else {
-            Alert.alert('Login failed', data.message || 'Unknown error');
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          Alert.alert('Login error', err.message);
-        });
+    if (!token?.idToken) {
+      Alert.alert('Error', 'No ID token returned from Google');
+      return;
     }
-  }, [response]);
+
+    fetch(`${apiBaseUrl}/api/auth/google-mobile`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ idToken: token.idToken })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.token) {
+          console.log('JWT Token:', data.token);
+          router.replace('/(tabs)/home');
+        } else {
+          Alert.alert('Login failed', data.message || 'Unknown error');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        Alert.alert('Login error', err.message);
+      });
+  }
+}, [response]);
+
 
 
   const handleLogin = async () => {
