@@ -1,4 +1,3 @@
-// ✅ IMPORTS
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
@@ -100,7 +99,8 @@ export default function Home() {
               pinColor="blue"
             />
           )}
-          {/* Job Marker */}
+
+          {/* Selected Job Marker */}
           {selectedJob && (
             <Marker
               coordinate={{
@@ -122,11 +122,34 @@ export default function Home() {
           <Text style={styles.detailsSubtitle}>
             {selectedJob.job_type} at {selectedJob.employer_name}
           </Text>
-          <Text>📍 {selectedJob.job_location?.street_address}, {selectedJob.job_location?.city}, {selectedJob.job_location?.province} {selectedJob.job_location?.postal_code}</Text>
+          <Text>
+            📍 {selectedJob.job_location?.street_address},{' '}
+            {selectedJob.job_location?.city},{' '}
+            {selectedJob.job_location?.province}{' '}
+            {selectedJob.job_location?.postal_code}
+          </Text>
           <Text style={{ marginTop: 8 }}>📝 {selectedJob.job_description}</Text>
           <Text style={{ marginTop: 8 }}>📧 {selectedJob.employer_email}</Text>
           <Text>📞 {selectedJob.employer_contact}</Text>
           <Text>👥 Positions: {selectedJob.number_of_positions}</Text>
+
+          {/* 🆕 Close Button */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => {
+              setSelectedJob(null);
+              if (location) {
+                setMapRegion({
+                  latitude: location.coords.latitude,
+                  longitude: location.coords.longitude,
+                  latitudeDelta: 0.05,
+                  longitudeDelta: 0.05,
+                });
+              }
+            }}
+          >
+            <Text style={styles.closeButtonText}>Close Details</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -190,7 +213,6 @@ const styles = StyleSheet.create({
   jobCompany: { fontSize: 14, color: '#666' },
   jobDistance: { fontSize: 14, color: '#999' },
 
-  // 🆕 Added Styles
   detailsBox: {
     backgroundColor: '#eef0f2',
     borderRadius: 8,
@@ -206,5 +228,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#444',
     marginBottom: 10,
+  },
+  closeButton: {
+    marginTop: 12,
+    backgroundColor: '#d9534f',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
