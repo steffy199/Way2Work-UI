@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -9,9 +9,11 @@ import {
   TextInput,
   View,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
+import { useFocusEffect } from '@react-navigation/native';
 import config from '../../config';
 
 export default function Home() {
@@ -19,14 +21,15 @@ export default function Home() {
   const [username, setUsername] = useState('User');
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [location, setLocation] = useState(null);
   const [mapRegion, setMapRegion] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
 
   const apiBaseUrl = config.API_BASE_URL;
 
-  useEffect(() => {
-    const initLocation = async () => {
+  const initLocation = async () => {
+    try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'Location permission is required.');
@@ -41,35 +44,49 @@ export default function Home() {
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       });
-    };
+    } catch (err) {
+      console.error('Location error:', err);
+    }
+  };
 
-    const fetchData = async () => {
-      if (!token) {
-        Alert.alert('Unauthorized', 'No token found in route. Please log in.');
-        return;
-      }
+  const fetchData = async () => {
+    if (!token) {
+      Alert.alert('Unauthorized', 'No token found in route. Please log in.');
+      return;
+    }
 
-      try {
-        const userRes = await fetch(`${apiBaseUrl}/api/auth/user`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const userData = await userRes.json();
-        if (userRes.ok) setUsername(userData.username);
+    try {
+      setLoading(true);
+      const userRes = await fetch(`${apiBaseUrl}/api/auth/user`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const userData = await userRes.json();
+      if (userRes.ok) setUsername(userData.username);
 
-        const jobRes = await fetch(`${apiBaseUrl}/api/jobs`);
-        const jobData = await jobRes.json();
-        if (Array.isArray(jobData)) setJobs(jobData);
-      } catch (err) {
-        console.error('Error loading data:', err);
-        Alert.alert('Error', 'Something went wrong');
-      } finally {
-        setLoading(false);
-      }
-    };
+      const jobRes = await fetch(`${apiBaseUrl}/api/jobs`);
+      const jobData = await jobRes.json();
+      if (Array.isArray(jobData)) setJobs(jobData);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      Alert.alert('Error', 'Something went wrong');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
-    initLocation();
-    fetchData();
-  }, []);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await initLocation();
+    await fetchData();
+  };
+
+  // Load data when screen is focused (like Instagram)
+  useFocusEffect(
+    useCallback(() => {
+      handleRefresh();
+    }, [token])
+  );
 
   return (
     <View style={styles.container}>
@@ -80,7 +97,6 @@ export default function Home() {
         placeholderTextColor="#999"
       />
 
-      {/* ✅ Map centered on user location or selected job */}
       {mapRegion && (
         <MapView
           style={styles.map}
@@ -88,7 +104,6 @@ export default function Home() {
           showsUserLocation={true}
           showsMyLocationButton={true}
         >
-          {/* User Marker */}
           {location && (
             <Marker
               coordinate={{
@@ -99,8 +114,6 @@ export default function Home() {
               pinColor="blue"
             />
           )}
-
-          {/* Selected Job Marker */}
           {selectedJob && (
             <Marker
               coordinate={{
@@ -115,7 +128,6 @@ export default function Home() {
         </MapView>
       )}
 
-      {/* ✅ Selected Job Details */}
       {selectedJob && (
         <View style={styles.detailsBox}>
           <Text style={styles.detailsTitle}>{selectedJob.job_title}</Text>
@@ -133,7 +145,6 @@ export default function Home() {
           <Text>📞 {selectedJob.employer_contact}</Text>
           <Text>👥 Positions: {selectedJob.number_of_positions}</Text>
 
-          {/* 🆕 Close Button */}
           <TouchableOpacity
             style={styles.closeButton}
             onPress={() => {
@@ -153,12 +164,17 @@ export default function Home() {
         </View>
       )}
 
-      {/* ✅ Job List */}
-      {loading ? (
-        <ActivityIndicator size="large" color="#888" />
-      ) : (
-        <ScrollView style={styles.jobsContainer}>
-          {jobs.map((job, index) => (
+      {/* Job List */}
+      <ScrollView
+        style={styles.jobsContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {loading ? (
+          <ActivityIndicator size="large" color="#888" style={{ marginTop: 20 }} />
+        ) : (
+          jobs.map((job, index) => (
             <TouchableOpacity
               key={index}
               style={styles.jobCard}
@@ -178,9 +194,9 @@ export default function Home() {
                 {job.job_location?.city || 'Unknown'}
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      )}
+          ))
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -212,7 +228,6 @@ const styles = StyleSheet.create({
   jobTitle: { fontSize: 16, fontWeight: 'bold' },
   jobCompany: { fontSize: 14, color: '#666' },
   jobDistance: { fontSize: 14, color: '#999' },
-
   detailsBox: {
     backgroundColor: '#eef0f2',
     borderRadius: 8,
