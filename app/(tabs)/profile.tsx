@@ -7,18 +7,23 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  TextInput,
+  View,
+  TouchableOpacity
 } from 'react-native';
 import config from '../../config';
 
 export default function Profile() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
+
   const [user, setUser] = useState({
-    user_id: '',
     username: '',
     email: '',
   });
+
+  const [editMode, setEditMode] = useState(false);
+  const [updatedUser, setUpdatedUser] = useState({ username: '', email: '', password: '' });
 
   useEffect(() => {
     if (!token) return Alert.alert('Error', 'Missing auth token');
@@ -28,10 +33,10 @@ export default function Profile() {
       })
       .then(res => {
         setUser({
-          user_id: res.data.user_id,
           username: res.data.username,
           email: res.data.email,
         });
+        setUpdatedUser({ username: res.data.username, email: res.data.email, password: '' });
       })
       .catch(() => Alert.alert('Error', 'Could not load profile'));
   }, [token]);
@@ -40,13 +45,34 @@ export default function Profile() {
     router.replace('/login');
   };
 
-  // get first initial (or “?” if no username)
+  const handleUpdate = async () => {
+    try {
+      const payload: any = {
+        username: updatedUser.username,
+        email: updatedUser.email,
+      };
+      if (updatedUser.password) payload.password = updatedUser.password;
+
+      const res = await axios.put(`${config.API_BASE_URL}/api/user/update`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      Alert.alert('Updated', 'Account updated successfully');
+      setUser({
+        username: res.data.username,
+        email: res.data.email,
+      });
+      setEditMode(false);
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Update failed');
+    }
+  };
+
   const initial = user.username ? user.username[0].toUpperCase() : '?';
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        {/* Initials avatar */}
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
@@ -55,12 +81,38 @@ export default function Profile() {
       </View>
 
       <View style={styles.infoSection}>
-        <Text style={styles.sectionTitle}>Account Details</Text>
-        <View style={styles.row}>
-          <Text style={styles.label}>User ID</Text>
-          <Text style={styles.value}>{user.user_id}</Text>
-        </View>
-        {/* add other details here */}
+        {/* <Text style={styles.sectionTitle}>My Account</Text> */}
+        {editMode ? (
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Username"
+              value={updatedUser.username}
+              onChangeText={val => setUpdatedUser(prev => ({ ...prev, username: val }))}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={updatedUser.email}
+              onChangeText={val => setUpdatedUser(prev => ({ ...prev, email: val }))}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="New Password"
+              secureTextEntry
+              value={updatedUser.password}
+              onChangeText={val => setUpdatedUser(prev => ({ ...prev, password: val }))}
+            />
+            <Button title="Save Changes" onPress={handleUpdate} />
+            <View style={{ height: 10 }} />
+            <Button title="Cancel" color="gray" onPress={() => setEditMode(false)} />
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.row} onPress={() => setEditMode(true)}>
+            <Text style={styles.sectionTitle}>My Account</Text>
+            <Text style={{ color: '#007AFF', fontWeight: '500' }}></Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={styles.actions}>
@@ -103,7 +155,14 @@ const styles = StyleSheet.create({
     borderColor: '#eee',
   },
   label: { fontSize: 16, color: '#444' },
-  value: { fontSize: 16, fontWeight: '500', color: '#000' },
+
+  form: {
+    gap: 10,
+  },
+  input: {
+    borderWidth: 1, borderColor: '#ccc', borderRadius: 8,
+    padding: 10, marginBottom: 10,
+  },
 
   actions: { marginTop: 10 },
 });
