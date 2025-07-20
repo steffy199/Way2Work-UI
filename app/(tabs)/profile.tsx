@@ -9,21 +9,22 @@ import {
   Text,
   TextInput,
   View,
-  TouchableOpacity
+  TouchableOpacity,
+  Modal,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../../config';
 
 export default function Profile() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
 
-  const [user, setUser] = useState({
-    username: '',
-    email: '',
-  });
-
+  const [user, setUser] = useState({ username: '', email: '' });
   const [editMode, setEditMode] = useState(false);
   const [updatedUser, setUpdatedUser] = useState({ username: '', email: '', password: '' });
+
+  const [radiusModalVisible, setRadiusModalVisible] = useState(false);
+  const [newRadius, setNewRadius] = useState('');
 
   useEffect(() => {
     if (!token) return Alert.alert('Error', 'Missing auth token');
@@ -32,10 +33,7 @@ export default function Profile() {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then(res => {
-        setUser({
-          username: res.data.username,
-          email: res.data.email,
-        });
+        setUser({ username: res.data.username, email: res.data.email });
         setUpdatedUser({ username: res.data.username, email: res.data.email, password: '' });
       })
       .catch(() => Alert.alert('Error', 'Could not load profile'));
@@ -58,13 +56,30 @@ export default function Profile() {
       });
 
       Alert.alert('Updated', 'Account updated successfully');
-      setUser({
-        username: res.data.username,
-        email: res.data.email,
-      });
+      setUser({ username: res.data.username, email: res.data.email });
       setEditMode(false);
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Update failed');
+    }
+  };
+
+  const handleRadiusChange = () => {
+    setRadiusModalVisible(true);
+  };
+
+  const saveRadius = async () => {
+    if (!newRadius || isNaN(Number(newRadius))) {
+      Alert.alert('Invalid input', 'Please enter a valid number');
+      return;
+    }
+
+    try {
+      await AsyncStorage.setItem('job_radius_km', newRadius);
+      Alert.alert('Success', `Notification radius set to ${newRadius} KM`);
+      setRadiusModalVisible(false);
+      setNewRadius('');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to save radius');
     }
   };
 
@@ -81,7 +96,6 @@ export default function Profile() {
       </View>
 
       <View style={styles.infoSection}>
-        {/* <Text style={styles.sectionTitle}>My Account</Text> */}
         {editMode ? (
           <View style={styles.form}>
             <TextInput
@@ -116,9 +130,31 @@ export default function Profile() {
       </View>
 
       <View style={styles.actions}>
+        <Button title="Set Notification Radius 📍" onPress={handleRadiusChange} />
         <View style={{ height: 10 }} />
         <Button title="Logout" color="#d00" onPress={handleLogout} />
       </View>
+
+      {/* Modal for radius input */}
+      <Modal visible={radiusModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={{ fontSize: 18, marginBottom: 10 }}>
+              Enter notification radius (in KM)
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g. 2"
+              keyboardType="numeric"
+              value={newRadius}
+              onChangeText={setNewRadius}
+            />
+            <Button title="Save" onPress={saveRadius} />
+            <View style={{ height: 10 }} />
+            <Button title="Cancel" color="gray" onPress={() => setRadiusModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -156,13 +192,33 @@ const styles = StyleSheet.create({
   },
   label: { fontSize: 16, color: '#444' },
 
-  form: {
-    gap: 10,
-  },
+  form: { gap: 10 },
   input: {
-    borderWidth: 1, borderColor: '#ccc', borderRadius: 8,
-    padding: 10, marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
   },
 
   actions: { marginTop: 10 },
+
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  modalContent: {
+    width: '80%',
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 10,
+    elevation: 5,
+  },
 });

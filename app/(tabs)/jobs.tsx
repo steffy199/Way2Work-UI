@@ -243,18 +243,19 @@ export default function Jobs() {
           <TextInput placeholder="Job Description" style={styles.input} multiline numberOfLines={4} value={form.job_description} onChangeText={val => handleChange('job_description', val)} />
 
           {region && (
-            <>
-              <Text style={{ fontWeight: 'bold', marginVertical: 10 }}>📍 Tap map to select job location:</Text>
-              <MapView style={styles.map} region={region} onPress={onMapPress}>
-                {form.latitude && form.longitude && (
-                  <Marker coordinate={{
-                    latitude: parseFloat(form.latitude),
-                    longitude: parseFloat(form.longitude)
-                  }} />
-                )}
-              </MapView>
-            </>
-          )}
+  <View style={{ marginVertical: 10 }}>
+    <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>📍 Tap map to select job location:</Text>
+    <MapView style={styles.map} region={region} onPress={onMapPress}>
+      {form.latitude && form.longitude && (
+        <Marker coordinate={{
+          latitude: parseFloat(form.latitude),
+          longitude: parseFloat(form.longitude)
+        }} />
+      )}
+    </MapView>
+  </View>
+)}
+
 
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitButtonText}>{editingJobId ? '💾 Save Changes' : '📤 Submit Job'}</Text>

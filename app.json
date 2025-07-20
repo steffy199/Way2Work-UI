@@ -17,7 +17,9 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.mynewproject"
+      "package": "com.way2work.app",
+      "googleServicesFile": "./google-services.json",
+      "useNextNotificationsApi": true   
     },
     "web": {
       "bundler": "metro",
@@ -26,6 +28,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications", 
       [
         "expo-splash-screen",
         {
@@ -38,6 +41,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6d2c9779-35d6-4c88-9b2b-72ea3faa8526"
+      }
     }
   }
 }

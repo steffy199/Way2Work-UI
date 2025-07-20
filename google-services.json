@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "833943357037",
+    "project_id": "way2work-264ab",
+    "storage_bucket": "way2work-264ab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833943357037:android:cfaecc202188f326fc6164",
+        "android_client_info": {
+          "package_name": "com.way2work.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZLCWwP-Ye1oqk3NV3XkouPq096OBfsjw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
