@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,7 +14,20 @@ import {
 import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import haversine from 'haversine-distance';
+
 import config from '../../config';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function Home() {
   const { token } = useLocalSearchParams();
@@ -25,8 +38,41 @@ export default function Home() {
   const [location, setLocation] = useState(null);
   const [mapRegion, setMapRegion] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const apiBaseUrl = config.API_BASE_URL;
+
+  const registerForPushNotificationsAsync = async () => {
+    if (!Device.isDevice) {
+      alert('Push notifications require a physical device');
+      return;
+    }
+
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      alert('Permission denied for push notifications');
+      return;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync();
+    await AsyncStorage.setItem('push_token', tokenData.data);
+    console.log('📬 Expo Push Token:', tokenData.data);
+  };
 
   const initLocation = async () => {
     try {
@@ -44,12 +90,47 @@ export default function Home() {
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       });
+      return currentLocation;
     } catch (err) {
       console.error('Location error:', err);
     }
   };
 
-  const fetchData = async () => {
+  const notifyNearbyJobs = async (jobs, userLocation) => {
+    const radiusKM = Number(await AsyncStorage.getItem('job_radius_km')) || 2;
+    console.log(`📏 Notification Radius (KM):`, radiusKM);
+    console.log(`📍 User Location:`, userLocation.coords);
+
+    for (let job of jobs) {
+      if (!job.latitude || !job.longitude) {
+        console.warn(`⚠️ Job missing coordinates:`, job.job_title);
+        continue;
+      }
+
+      const distance = haversine(
+        { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude },
+        { latitude: job.latitude, longitude: job.longitude }
+      ) / 1000;
+
+      console.log(`📌 Job: ${job.job_title} | Distance: ${distance.toFixed(2)} km`);
+
+      if (distance <= radiusKM) {
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `📢 ${job.job_title}`,
+            body: `${job.job_type} at ${job.employer_name}`,
+            data: { jobId: job._id },
+            sound: 'default',
+          },
+          trigger: { seconds: 2 }, // ✅ Updated for Android
+        });
+
+        console.log(`✅ Notification scheduled: ${job.job_title} (ID: ${notificationId})`);
+      }
+    }
+  };
+
+  const fetchData = async (userLocation?: any) => {
     if (!token) {
       Alert.alert('Unauthorized', 'No token found in route. Please log in.');
       return;
@@ -57,6 +138,7 @@ export default function Home() {
 
     try {
       setLoading(true);
+
       const userRes = await fetch(`${apiBaseUrl}/api/auth/user`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -65,7 +147,12 @@ export default function Home() {
 
       const jobRes = await fetch(`${apiBaseUrl}/api/jobs`);
       const jobData = await jobRes.json();
-      if (Array.isArray(jobData)) setJobs(jobData);
+      if (Array.isArray(jobData)) {
+        setJobs(jobData);
+        if (userLocation) {
+          await notifyNearbyJobs(jobData, userLocation);
+        }
+      }
     } catch (err) {
       console.error('Error loading data:', err);
       Alert.alert('Error', 'Something went wrong');
@@ -77,15 +164,36 @@ export default function Home() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await initLocation();
-    await fetchData();
+    const currentLocation = await initLocation();
+    if (currentLocation) {
+      await fetchData(currentLocation);
+    }
   };
 
-  // Load data when screen is focused (like Instagram)
   useFocusEffect(
     useCallback(() => {
-      handleRefresh();
-    }, [token])
+      if (!hasInitialized) {
+        setHasInitialized(true);
+        registerForPushNotificationsAsync();
+        handleRefresh();
+      }
+
+      const sub = Notifications.addNotificationResponseReceivedListener(response => {
+        const jobId = response.notification.request.content.data?.jobId;
+        const job = jobs.find(j => j._id === jobId);
+        if (job) {
+          setSelectedJob(job);
+          setMapRegion({
+            latitude: job.latitude,
+            longitude: job.longitude,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          });
+        }
+      });
+
+      return () => sub.remove();
+    }, [token, jobs, hasInitialized])
   );
 
   return (
@@ -164,7 +272,6 @@ export default function Home() {
         </View>
       )}
 
-      {/* Job List */}
       <ScrollView
         style={styles.jobsContainer}
         refreshControl={
