@@ -18,6 +18,7 @@ import config from '../../config';
 export default function Profile() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
+  
 
   const [user, setUser] = useState({ username: '', email: '' });
   const [editMode, setEditMode] = useState(false);
