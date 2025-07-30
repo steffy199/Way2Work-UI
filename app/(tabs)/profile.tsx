@@ -1,18 +1,18 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Button,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
   TouchableOpacity,
-  Modal,
+  View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from '../../config';
 
 export default function Profile() {
@@ -25,6 +25,7 @@ export default function Profile() {
 
   const [radiusModalVisible, setRadiusModalVisible] = useState(false);
   const [newRadius, setNewRadius] = useState('');
+  const [savedRadius, setSavedRadius] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return Alert.alert('Error', 'Missing auth token');
@@ -35,33 +36,48 @@ export default function Profile() {
       .then(res => {
         setUser({ username: res.data.username, email: res.data.email });
         setUpdatedUser({ username: res.data.username, email: res.data.email, password: '' });
+
+        AsyncStorage.getItem('job_radius_km').then((value) => {
+          if (value)
+            setSavedRadius(value);
+        });
       })
       .catch(() => Alert.alert('Error', 'Could not load profile'));
   }, [token]);
+
+  const cancelEdit = () => {
+    
+    setUpdatedUser({ username: user.username, email: user.email, password: '' });
+    setEditMode(false);
+  }
 
   const handleLogout = () => {
     router.replace('/login');
   };
 
-  const handleUpdate = async () => {
-    try {
-      const payload: any = {
-        username: updatedUser.username,
-        email: updatedUser.email,
-      };
-      if (updatedUser.password) payload.password = updatedUser.password;
+const handleUpdate = async () => {
+  try {
+    const payload: any = {
+      username: updatedUser.username,
+      email: updatedUser.email,
+    };
+    if (updatedUser.password) payload.password = updatedUser.password;
 
-      const res = await axios.put(`${config.API_BASE_URL}/api/user/update`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const res = await axios.put(`${config.API_BASE_URL}/api/auth/user/update`, payload, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      Alert.alert('Updated', 'Account updated successfully');
-      setUser({ username: res.data.username, email: res.data.email });
-      setEditMode(false);
-    } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Update failed');
-    }
-  };
+    // If success:
+    setUser({ username: res.data.username, email: res.data.email });
+    setEditMode(false);
+    setUpdatedUser({ username: res.data.username, email: res.data.email, password: '' });
+    Alert.alert('Updated', 'Account updated successfully');
+  } catch (err: any) {
+    console.log('Update error response:', err.response?.data);
+    Alert.alert('Error', err.response?.data?.message || 'Update failed');
+  }
+};
+
 
   const handleRadiusChange = () => {
     setRadiusModalVisible(true);
@@ -75,6 +91,7 @@ export default function Profile() {
 
     try {
       await AsyncStorage.setItem('job_radius_km', newRadius);
+      setSavedRadius(newRadius);
       Alert.alert('Success', `Notification radius set to ${newRadius} KM`);
       setRadiusModalVisible(false);
       setNewRadius('');
@@ -92,24 +109,28 @@ export default function Profile() {
           <Text style={styles.avatarText}>{initial}</Text>
         </View>
         <Text style={styles.name}>{user.username}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        <View style={styles.divider} />
       </View>
 
       <View style={styles.infoSection}>
         {editMode ? (
           <View style={styles.form}>
+            <Text style={styles.sectionTitle}>Edit Profile</Text>
+            <Text style={styles.label}>Username</Text>
             <TextInput
               style={styles.input}
               placeholder="Username"
               value={updatedUser.username}
               onChangeText={val => setUpdatedUser(prev => ({ ...prev, username: val }))}
             />
+            <Text style={styles.label}>Email</Text>
             <TextInput
               style={styles.input}
               placeholder="Email"
               value={updatedUser.email}
               onChangeText={val => setUpdatedUser(prev => ({ ...prev, email: val }))}
             />
+            <Text style={styles.label}>New Password</Text>
             <TextInput
               style={styles.input}
               placeholder="New Password"
@@ -117,23 +138,47 @@ export default function Profile() {
               value={updatedUser.password}
               onChangeText={val => setUpdatedUser(prev => ({ ...prev, password: val }))}
             />
-            <Button title="Save Changes" onPress={handleUpdate} />
-            <View style={{ height: 10 }} />
-            <Button title="Cancel" color="gray" onPress={() => setEditMode(false)} />
+            <TouchableOpacity style={styles.saveBtn} onPress={handleUpdate}>
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.cancelBtn} onPress={cancelEdit}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         ) : (
-          <TouchableOpacity style={styles.row} onPress={() => setEditMode(true)}>
-            <Text style={styles.sectionTitle}>My Account</Text>
-            <Text style={{ color: '#007AFF', fontWeight: '500' }}></Text>
-          </TouchableOpacity>
-        )}
-      </View>
+          <View>
+            <View style={styles.rowBetween}>
+              <Text style={styles.sectionTitle}>My Account</Text>
+              <TouchableOpacity onPress={() => setEditMode(true)}>
+                <Text style={{ color: '#007AFF', fontWeight: '500' }}>Edit</Text>
+              </TouchableOpacity>
+            </View>
 
+            <View style={{ marginTop: 15 }}>
+              <Text style={styles.label}>Username</Text>
+              <Text style={styles.valueText}>{user.username}</Text>
+
+              <Text style={styles.label}>Email</Text>
+              <Text style={styles.valueText}>{user.email}</Text>
+            </View>
+          </View>
+        )}
+
+      </View>
       <View style={styles.actions}>
-        <Button title="Set Notification Radius 📍" onPress={handleRadiusChange} />
+        {savedRadius && (
+          <Text style={styles.radiusText}>
+            Current Radius: {savedRadius} KM
+          </Text>
+        )}
+        <TouchableOpacity onPress={handleRadiusChange} style={styles.radiusButton}>
+          <Text style={styles.radiusButtonText}>Set Notification Radius 📍</Text>
+        </TouchableOpacity>
         <View style={{ height: 10 }} />
         <Button title="Logout" color="#d00" onPress={handleLogout} />
       </View>
+
 
       {/* Modal for radius input */}
       <Modal visible={radiusModalVisible} transparent animationType="fade">
@@ -190,7 +235,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: '#eee',
   },
-  label: { fontSize: 16, color: '#444' },
 
   form: { gap: 10 },
   input: {
@@ -221,4 +265,77 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     elevation: 5,
   },
+  divider: {
+    height: 1,
+    width: '100%',
+    backgroundColor: '#eee',
+    marginTop: 15,
+  },
+  radiusText: {
+  fontSize: 16,
+  color: '#333',
+  textAlign: 'center',
+  marginBottom: 10,
+},
+
+radiusButton: {
+  borderColor: '#007AFF',
+  borderWidth: 1,
+  borderRadius: 8,
+  paddingVertical: 12,
+  paddingHorizontal: 15,
+  alignItems: 'center',
+  marginBottom: 10,
+},
+
+radiusButtonText: {
+  color: '#007AFF',
+  fontSize: 16,
+  fontWeight: '500',
+},
+saveBtn: {
+  backgroundColor: '#007AFF',
+  paddingVertical: 12,
+  borderRadius: 8,
+  alignItems: 'center',
+  marginTop: 10,
+},
+saveBtnText: {
+  color: '#fff',
+  fontSize: 16,
+  fontWeight: '600',
+},
+cancelBtn: {
+  borderColor: '#ccc',
+  borderWidth: 1,
+  paddingVertical: 12,
+  borderRadius: 8,
+  alignItems: 'center',
+  marginTop: 10,
+},
+cancelBtnText: {
+  color: '#333',
+  fontSize: 16,
+},
+rowBetween: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+},
+
+label: {
+  fontSize: 14,
+  color: '#666',
+  marginBottom: 5,
+  marginTop: 10,
+},
+
+valueText: {
+  fontSize: 16,
+  color: '#000',
+  marginBottom: 10,
+},
+
+
+
 });
