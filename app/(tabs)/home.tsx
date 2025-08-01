@@ -1,23 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Device from 'expo-device';
+import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams } from 'expo-router';
+import haversine from 'haversine-distance';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  View,
   TouchableOpacity,
-  RefreshControl,
+  View,
 } from 'react-native';
-import * as Location from 'expo-location';
 import MapView, { Marker } from 'react-native-maps';
-import { useFocusEffect } from '@react-navigation/native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import haversine from 'haversine-distance';
 
 import config from '../../config';
 
@@ -39,6 +39,7 @@ export default function Home() {
   const [mapRegion, setMapRegion] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [searchText, setSearchText] = useState(''); // Search state
 
   const apiBaseUrl = config.API_BASE_URL;
 
@@ -98,39 +99,27 @@ export default function Home() {
 
   const notifyNearbyJobs = async (jobs, userLocation) => {
     const radiusKM = Number(await AsyncStorage.getItem('job_radius_km')) || 2;
-    console.log(`📏 Notification Radius (KM):`, radiusKM);
-    console.log(`📍 User Location:`, userLocation.coords);
-
     for (let job of jobs) {
-      if (!job.latitude || !job.longitude) {
-        console.warn(`⚠️ Job missing coordinates:`, job.job_title);
-        continue;
-      }
-
+      if (!job.latitude || !job.longitude) continue;
       const distance = haversine(
         { latitude: userLocation.coords.latitude, longitude: userLocation.coords.longitude },
         { latitude: job.latitude, longitude: job.longitude }
       ) / 1000;
-
-      console.log(`📌 Job: ${job.job_title} | Distance: ${distance.toFixed(2)} km`);
-
       if (distance <= radiusKM) {
-        const notificationId = await Notifications.scheduleNotificationAsync({
+        await Notifications.scheduleNotificationAsync({
           content: {
             title: `📢 ${job.job_title}`,
             body: `${job.job_type} at ${job.employer_name}`,
             data: { jobId: job._id },
             sound: 'default',
           },
-          trigger: { seconds: 2 }, // ✅ Updated for Android
+          trigger: { seconds: 2 },
         });
-
-        console.log(`✅ Notification scheduled: ${job.job_title} (ID: ${notificationId})`);
       }
     }
   };
 
-  const fetchData = async (userLocation?: any) => {
+  const fetchData = async (userLocation) => {
     if (!token) {
       Alert.alert('Unauthorized', 'No token found in route. Please log in.');
       return;
@@ -196,6 +185,14 @@ export default function Home() {
     }, [token, jobs, hasInitialized])
   );
 
+  // --- Filtered jobs for search bar ---
+  const filteredJobs = jobs.filter(
+    job =>
+      job.job_title?.toLowerCase().includes(searchText.toLowerCase()) ||
+      job.employer_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+      (job.job_location?.city || '').toLowerCase().includes(searchText.toLowerCase())
+  );
+
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Hi {username} 👋</Text>
@@ -203,6 +200,8 @@ export default function Home() {
         style={styles.searchInput}
         placeholder="Search"
         placeholderTextColor="#999"
+        value={searchText}
+        onChangeText={setSearchText}
       />
 
       {mapRegion && (
@@ -281,7 +280,7 @@ export default function Home() {
         {loading ? (
           <ActivityIndicator size="large" color="#888" style={{ marginTop: 20 }} />
         ) : (
-          jobs.map((job, index) => (
+          filteredJobs.map((job, index) => (
             <TouchableOpacity
               key={index}
               style={styles.jobCard}

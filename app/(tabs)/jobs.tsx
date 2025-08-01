@@ -1,12 +1,14 @@
 import { Picker } from '@react-native-picker/picker';
 import axios from 'axios';
+import * as Location from 'expo-location';
 import { useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert, ScrollView, StyleSheet, Text, TextInput, View, TouchableOpacity
+  Alert, ScrollView, StyleSheet, Text, TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import MapView, { Marker, Region } from 'react-native-maps';
-import * as Location from 'expo-location';
 import config from '../../config';
 
 const initialForm = {
@@ -30,18 +32,18 @@ export default function Jobs() {
   const [user, setUser] = useState({ user_id: '', email: '', username: '' });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(initialForm);
-  const [jobs, setJobs] = useState([]);
+  const [myJobs, setMyJobs] = useState([]);
+  const [allJobs, setAllJobs] = useState([]);
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [region, setRegion] = useState<Region | null>(null);
-  const [showJobsList, setShowJobsList] = useState(false);
+  const [tab, setTab] = useState<'create' | 'myjobs' | 'alljobs'>('alljobs');
+  const [selectedJob, setSelectedJob] = useState(null);
 
   const handleChange = (name: string, value: string | null) => {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
   const resetForm = async () => {
-    setShowJobsList(false); // 👈 Ensure jobs list is hidden
-
     if (!showForm) {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -71,19 +73,29 @@ export default function Jobs() {
       setForm(initialForm);
       setRegion(null);
     }
-
     setShowForm(prev => !prev);
     setEditingJobId(null);
   };
 
-  const fetchUserJobs = async (uid: string) => {
+  // Fetch only jobs created by user
+  const fetchMyJobs = async (uid: string) => {
     try {
       const res = await axios.get(`${config.API_BASE_URL}/api/jobs/user/${uid}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setJobs(res.data);
+      setMyJobs(res.data);
     } catch (error) {
       Alert.alert('Error', 'Failed to fetch jobs.');
+    }
+  };
+
+  // Fetch all jobs (for the public board)
+  const fetchAllJobs = async () => {
+    try {
+      const res = await axios.get(`${config.API_BASE_URL}/api/jobs`);
+      setAllJobs(res.data);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch all jobs.');
     }
   };
 
@@ -118,7 +130,8 @@ export default function Jobs() {
         Alert.alert('Created', 'Job created successfully.');
       }
       resetForm();
-      fetchUserJobs(user.user_id);
+      fetchMyJobs(user.user_id);
+      fetchAllJobs();
     } catch (err: any) {
       Alert.alert('Error', err.response?.data?.message || 'Job operation failed');
     }
@@ -145,7 +158,6 @@ export default function Jobs() {
 
     setEditingJobId(job.job_id);
     setShowForm(true);
-    setShowJobsList(false); // 👈 Close jobs list if editing
   };
 
   const handleDelete = async (job_id: string) => {
@@ -159,7 +171,8 @@ export default function Jobs() {
               headers: { Authorization: `Bearer ${token}` },
             });
             Alert.alert("Deleted", "Job deleted.");
-            fetchUserJobs(user.user_id);
+            fetchMyJobs(user.user_id);
+            fetchAllJobs();
           } catch (err) {
             Alert.alert("Error", "Failed to delete job.");
           }
@@ -182,7 +195,8 @@ export default function Jobs() {
           username: res.data.username,
         };
         setUser(userData);
-        fetchUserJobs(userData.user_id);
+        fetchMyJobs(userData.user_id);
+        fetchAllJobs();
       } catch (error) {
         Alert.alert("Error", "Could not fetch user info");
       }
@@ -203,22 +217,20 @@ export default function Jobs() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Hi {user.username || 'User'} 👋</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 10 }}>
+        <TouchableOpacity style={[styles.tabButton, tab === 'alljobs' && styles.activeTab]} onPress={() => { setTab('alljobs'); setShowForm(false); setSelectedJob(null); }}>
+          <Text style={styles.tabButtonText}>All Jobs</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabButton, tab === 'myjobs' && styles.activeTab]} onPress={() => { setTab('myjobs'); setShowForm(false); setSelectedJob(null); }}>
+          <Text style={styles.tabButtonText}>My Jobs</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.tabButton, tab === 'create' && styles.activeTab]} onPress={() => { setTab('create'); setShowForm(true); setSelectedJob(null); }}>
+          <Text style={styles.tabButtonText}>Create</Text>
+        </TouchableOpacity>
+      </View>
 
-      <TouchableOpacity style={styles.tabButton} onPress={resetForm}>
-        <Text style={styles.tabButtonText}>{showForm ? '➕  Create New Job' : '➕  Create New Job'}</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.tabButton}
-        onPress={() => {
-          setShowForm(false);           // 👈 Close form
-          setShowJobsList(prev => !prev);
-        }}
-      >
-        <Text style={styles.tabButtonText}>{showJobsList ? '📋 My Jobs' : '📋 My Jobs'}</Text>
-      </TouchableOpacity>
-
-      {showForm && (
+      {/* Job Creation Form */}
+      {showForm && tab === 'create' && (
         <View style={styles.form}>
           <TextInput placeholder="Job Title" style={styles.input} value={form.job_title} onChangeText={val => handleChange('job_title', val)} />
           <View style={styles.input}>
@@ -243,19 +255,18 @@ export default function Jobs() {
           <TextInput placeholder="Job Description" style={styles.input} multiline numberOfLines={4} value={form.job_description} onChangeText={val => handleChange('job_description', val)} />
 
           {region && (
-  <View style={{ marginVertical: 10 }}>
-    <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>📍 Tap map to select job location:</Text>
-    <MapView style={styles.map} region={region} onPress={onMapPress}>
-      {form.latitude && form.longitude && (
-        <Marker coordinate={{
-          latitude: parseFloat(form.latitude),
-          longitude: parseFloat(form.longitude)
-        }} />
-      )}
-    </MapView>
-  </View>
-)}
-
+            <View style={{ marginVertical: 10 }}>
+              <Text style={{ fontWeight: 'bold', marginBottom: 10 }}>📍 Tap map to select job location:</Text>
+              <MapView style={styles.map} region={region} onPress={onMapPress}>
+                {form.latitude && form.longitude && (
+                  <Marker coordinate={{
+                    latitude: parseFloat(form.latitude),
+                    longitude: parseFloat(form.longitude)
+                  }} />
+                )}
+              </MapView>
+            </View>
+          )}
 
           <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
             <Text style={styles.submitButtonText}>{editingJobId ? '💾 Save Changes' : '📤 Submit Job'}</Text>
@@ -263,20 +274,75 @@ export default function Jobs() {
         </View>
       )}
 
-      {showJobsList && jobs.map((job) => (
-        <TouchableOpacity key={job.job_id} style={styles.jobCard} onPress={() => handleEdit(job)}>
-          <Text style={{ fontWeight: 'bold' }}>{job.job_title}</Text>
-          <Text>{job.job_type} • {job.city || job.job_location.city}</Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <TouchableOpacity onPress={() => handleEdit(job)}>
-              <Text style={{ color: '#1E90FF', fontWeight: '600' }}>Edit</Text>
+      {/* Show Job Details (selectedJob) */}
+      {selectedJob && (
+        <View style={styles.detailsBox}>
+          <Text style={styles.detailsTitle}>{selectedJob.job_title}</Text>
+          <Text style={styles.detailsSubtitle}>
+            {selectedJob.job_type} at {selectedJob.employer_name}
+          </Text>
+          <Text>
+            📍 {selectedJob.job_location?.street_address},{' '}
+            {selectedJob.job_location?.city},{' '}
+            {selectedJob.job_location?.province}{' '}
+            {selectedJob.job_location?.postal_code}
+          </Text>
+          <Text style={{ marginTop: 8 }}>📝 {selectedJob.job_description}</Text>
+          <Text style={{ marginTop: 8 }}>📧 {selectedJob.employer_email}</Text>
+          <Text>📞 {selectedJob.employer_contact}</Text>
+          <Text>👥 Positions: {selectedJob.number_of_positions}</Text>
+
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={() => setSelectedJob(null)}
+          >
+            <Text style={styles.closeButtonText}>Close Details</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* All Jobs Tab */}
+      {tab === 'alljobs' && (
+        <View>
+          <Text style={styles.subHeader}>All Jobs</Text>
+          {allJobs.map((job) => (
+            <TouchableOpacity
+              key={job.job_id || job._id}
+              style={styles.jobCard}
+              onPress={() => setSelectedJob(job)}
+            >
+              <Text style={{ fontWeight: 'bold' }}>{job.job_title}</Text>
+              <Text>{job.job_type} • {job.city || job.job_location?.city}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => handleDelete(job.job_id)}>
-              <Text style={{ color: 'red', fontWeight: '600' }}>Delete</Text>
+          ))}
+        </View>
+      )}
+
+      {/* My Jobs Tab */}
+      {tab === 'myjobs' && (
+        <View>
+          <Text style={styles.subHeader}>My Jobs</Text>
+          {myJobs.map((job) => (
+            <TouchableOpacity
+              key={job.job_id || job._id}
+              style={styles.jobCard}
+              onPress={() => setSelectedJob(job)}
+            >
+              <Text style={{ fontWeight: 'bold' }}>{job.job_title}</Text>
+              <Text>{job.job_type} • {job.city || job.job_location?.city}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 }}>
+                <TouchableOpacity onPress={() => handleEdit(job)}>
+                  <Text style={{ color: '#1E90FF', fontWeight: '600' }}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDelete(job.job_id)}>
+                  <Text style={{ color: 'red', fontWeight: '600' }}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      ))}
+          ))}
+        </View>
+      )}
+
     </ScrollView>
   );
 }
@@ -284,25 +350,18 @@ export default function Jobs() {
 const styles = StyleSheet.create({
   container: { padding: 20, backgroundColor: '#fff' },
   title: { fontSize: 22, fontWeight: 'bold', marginBottom: 10 },
+  subHeader: { fontSize: 17, fontWeight: 'bold', marginVertical: 6, color: '#1E90FF' },
   tabButton: {
     backgroundColor: '#f3f3f3',
     borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginVertical: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 17,
+    marginHorizontal: 5,
     borderWidth: 1,
     borderColor: '#ddd',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  tabButtonText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
+  activeTab: { backgroundColor: '#1E90FF', borderColor: '#1E90FF' },
+  tabButtonText: { fontSize: 15, color: '#333', fontWeight: '500' },
   form: { marginTop: 15, gap: 10 },
   input: {
     borderWidth: 1,
@@ -335,5 +394,26 @@ const styles = StyleSheet.create({
     padding: 15,
     marginVertical: 10,
     backgroundColor: '#f9f9f9',
+  },
+  detailsBox: {
+    backgroundColor: '#eef0f2',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 15,
+  },
+  detailsTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 4 },
+  detailsSubtitle: { fontSize: 14, color: '#444', marginBottom: 10 },
+  closeButton: {
+    marginTop: 12,
+    backgroundColor: '#d9534f',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  closeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
 });
